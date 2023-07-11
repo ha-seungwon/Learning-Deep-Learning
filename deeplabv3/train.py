@@ -1,16 +1,20 @@
+import argparse
+import os
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision.transforms import ToTensor, Normalize, Compose
-import deeplabv3
-import pandas as pd
+import pdb
 from PIL import Image
-from torch.utils.data import Dataset
-import dataloader
-from pascal import VOCSegmentation
+from scipy.io import loadmat
+from torch.autograd import Variable
 from torchvision import transforms
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+
+import deeplabv3
+from pascal import VOCSegmentation
+from utils import AverageMeter, inter_and_union
+
+
 
 # Define the loss function
 criterion = nn.CrossEntropyLoss()
@@ -33,17 +37,14 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-# Custom collate function
-def custom_collate(batch):
-    images = [transform(item[0]) for item in batch]
-    masks = [transform(item[1]) for item in batch]
-    return torch.stack(images, dim=0), torch.stack(masks, dim=0)
 
 # Create a dataset using VOCSegmentation
-dataset = VOCSegmentation("data/VOCdevkit")
+dataset = VOCSegmentation('C:/Users/USER/Desktop/연구실/data/VOCdevkit',
+        train=True, crop_size=513)
 
-# Create a DataLoader with custom collate function
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=custom_collate)
+dataset_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=16, shuffle=True,
+        pin_memory=True, num_workers=4)
 
 # Calculate IoU
 def calculate_iou(predicted_mask, target_mask):
@@ -51,7 +52,7 @@ def calculate_iou(predicted_mask, target_mask):
     union = torch.logical_or(predicted_mask, target_mask).sum()
     iou = intersection.float() / union.float()
     return iou
-
+from tqdm import tqdm
 # Define your training loop
 def train_model(model, criterion, optimizer, device, epochs):
     model.train()  # Set the model to train mode
@@ -61,7 +62,7 @@ def train_model(model, criterion, optimizer, device, epochs):
         running_iou = 0.0
 
         # Wrap the dataloader with tqdm and add a progress bar
-        with tqdm(dataloader, unit="batch") as t:
+        with tqdm(dataset_loader, unit="batch") as t:
             t.set_description(f"Epoch [{epoch+1}/{epochs}]")
 
             # Iterate over the training dataset
@@ -92,8 +93,8 @@ def train_model(model, criterion, optimizer, device, epochs):
                 t.set_postfix(loss=loss.item(), iou=iou.item())
 
         # Compute the epoch loss and IoU
-        epoch_loss = running_loss / len(dataloader.dataset)
-        epoch_iou = running_iou / len(dataloader.dataset)
+        epoch_loss = running_loss / len(dataset_loader.dataset)
+        epoch_iou = running_iou / len(dataset_loader.dataset)
 
         # Print the loss and IoU for this epoch
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {epoch_loss:.4f}, IoU: {epoch_iou:.4f}")
