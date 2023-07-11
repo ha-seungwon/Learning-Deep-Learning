@@ -7,6 +7,9 @@ import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
 import dataloader
+from torchvision.datasets import VOCSegmentation
+from torchvision import transforms
+from torch.utils.data import DataLoader
 
 # Define the loss function
 criterion = nn.CrossEntropyLoss()
@@ -59,6 +62,23 @@ def train_model(model, dataloader, criterion, optimizer, device, num_epochs):
 
 
 
-dataset=dataloader.CocoDataset("/Users/haseung-won/Desktop/학교/연구실/data/coco_minitrain_25k")
+# Define your image transformations
+transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
+
+# Custom collate function
+def custom_collate(batch):
+    images = [transform(item[0]) for item in batch]
+    masks = [transform(item[1]) for item in batch]
+    return torch.stack(images, dim=0), torch.stack(masks, dim=0)
+
+# Create a dataset using VOCSegmentation
+dataset = VOCSegmentation("C:/Users/USER/Desktop/연구실/data", transform=None)
+
+# Create a DataLoader with custom collate function
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=custom_collate)
+
 num_epochs = 10
-train_model(model, dataset, criterion, optimizer, device, num_epochs)
+train_model(model, dataloader, criterion, optimizer, device, num_epochs)
