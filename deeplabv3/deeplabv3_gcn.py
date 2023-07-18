@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GCNConv
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv,SAGEConv
 from torchvision.models import resnet
 from typing import List
-import torch.nn.functional as F
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import to_undirected
 
+import warnings
+
+warnings.filterwarnings("ignore")
 
 class FCNHead(nn.Sequential):
     def __init__(self, in_channels: int, channels: int) -> None:
@@ -19,112 +22,109 @@ class FCNHead(nn.Sequential):
             nn.Conv2d(inter_channels, channels, 1),
         ]
         super().__init__(*layers)
-import torch
-import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv
 
-class CustomGraphSAGE(torch.nn.Module):
-    def __init__(self, size):
-        super(CustomGraphSAGE, self).__init__()
 
-        self.sage1 = GCNConv(size, size)
-        self.sage2 = GCNConv(size, size)
-        self.sage3 = GCNConv(size, size)
+class GCN_Layer(torch.nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(GCN_Layer, self).__init__()
+        self.sage1 = GCNConv(in_channels, out_channels)
+        self.sage2 = GCNConv(out_channels, out_channels)
+        self.sage3 = GCNConv(out_channels, out_channels)
 
     def forward(self, x, edge_index):
-        print("CustomGraphSAGE input:", x.size(), edge_index.size())
+        print("GCN layer input:", x.size(), edge_index.size())
         x = self.sage1(x, edge_index)
-
-        x = F.dropout(x, training=self.training)
+        x = F.dropout(x)
         x = F.relu(x)
         x = self.sage2(x, edge_index)
-
-        x = F.dropout(x, training=self.training)
+        x = F.dropout(x)
         x = F.relu(x)
         x = self.sage3(x, edge_index)
+        return x
+    
+class GCN_Layer_sage(torch.nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(GCN_Layer_sage, self).__init__()
+        self.sage1 = SAGEConv(in_channels, out_channels)
+        self.sage2 = SAGEConv(out_channels, out_channels)
+        self.sage3 = SAGEConv(out_channels, out_channels)
 
+    def forward(self, x, edge_index):
+        print("GCN layer input:", x.size(), edge_index.size())
+        x = self.sage1(x, edge_index)
+        x = F.dropout(x)
+        x = F.relu(x)
+        x = self.sage2(x, edge_index)
+        x = F.dropout(x)
+        x = F.relu(x)
+        x = self.sage3(x, edge_index)
         return x
 
+
 class GCN(torch.nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, hidden_channels: int) -> None:
+    def __init__(self, model_type:str,in_channels: int, out_channels: int, gcn_rate: int):
         super(GCN, self).__init__()
-        self.gcn_conv = CustomGraphSAGE(in_channels)
-        self.edge_index = self.create_edge_index(16, 16)
+        if model_type=='sage':
+            self.gcn_conv = GCN_Layer_sage(in_channels, out_channels)
+        else:
+            self.gcn_conv = GCN_Layer(in_channels, out_channels)
+        self.grid_size = 16
 
-    def create_edge_index(self, height, width):
-        row_indices = []
-        col_indices = []
-
-        for i in range(height):
-            for j in range(width):
-                current_index = i * width + j
-
-                # Add self-loop connection
-                row_indices.append(current_index)
-                col_indices.append(current_index)
-
-                # Add connections to the right and bottom nodes if they exist
-                if j < width - 1:
-                    right_index = i * width + j + 1
-                    row_indices.append(current_index)
-                    col_indices.append(right_index)
-                if i < height - 1:
-                    bottom_index = (i + 1) * width + j
-                    row_indices.append(current_index)
-                    col_indices.append(bottom_index)
-
-        edge_index = torch.tensor([row_indices, col_indices], dtype=torch.long)
-
-        return edge_index
+    def edge(self, grid_size):
+        edge_index = []
+        for i in range(grid_size):
+            for j in range(grid_size):
+                current = i * grid_size + j
+                if j < grid_size - 1:
+                    edge_index.append([current, current + 1])
+                if i < grid_size - 1:
+                    edge_index.append([current, current + grid_size])
+                if j < grid_size - 1 and i < grid_size - 1:
+                    edge_index.append([current, current + grid_size + 1])
+                if j > 0 and i < grid_size - 1:
+                    edge_index.append([current, current + grid_size - 1])
+        edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+        return edge_idx
 
     def feature2graph(self, feature_map, edge_index):
         batch_size, channels, height, width = feature_map.shape
-
-        # List to store graph data for each item in the batch
         data_list = []
-
-        # Iterate through the batch
         for i in range(batch_size):
-            # Extract the feature_map for this item in the batch
             single_map = feature_map[i]
-
-            # Reshape feature_map to match the graph size
-            x = single_map.view(channels, height * width).permute(1, 0)  # x has shape [height * width, channels]
-
-            # Create Data instance for this item in the batch
+            x = single_map.view(channels, height * width).permute(1, 0)
             data = Data(x=x, edge_index=edge_index)
-
-            # Appending the data to the data_list
             data_list.append(data)
-
-        # Create a batch from the data_list
         batch = Batch.from_data_list(data_list)
-
         return batch
+
+    def graph2feature(self, graph, num_nodes):
+        batch_size = graph.size(0) // num_nodes
+        channels = graph.size(1)
+        feature_shape = (channels, self.grid_size, self.grid_size)
+        print('feature_shape', feature_shape)
+        feature_maps = []
+        for i in range(batch_size):
+            single_tensor = graph[i * num_nodes: (i + 1) * num_nodes]
+            single_map = single_tensor.view(feature_shape)
+            feature_maps.append(single_map)
+        feature_maps = torch.stack(feature_maps)
+        return feature_maps
 
     def forward(self, x):
         print('GCN input:', x.size())
-
-        # Pass the input and edge_index to the GCN convolution layer
-        x = self.feature2graph(x, self.edge_index)
+        edge_idx = self.edge(self.grid_size)
+        x = self.feature2graph(x, edge_idx)
         x = self.gcn_conv(x.x, x.edge_index)
-
-        # Reshape the output tensor back to the original size
-        output_tensor = x.view(2, x.size(1),  16, 16)
-        print('GCN output:', output_tensor.size())
-
-        return output_tensor
-
-
-
-
-
+        print('gcn_conv output', x.size())
+        x = self.graph2feature(x, num_nodes=(self.grid_size ** 2))
+        print(x.size())
+        return x
 
 
 class DeepLabHead(nn.Sequential):
-    def __init__(self, in_channels: int, num_classes: int) -> None:
+    def __init__(self, gcn_model_type:str,in_channels: int, num_classes: int, atrous_rates: List[int], gcn_rates: List[int]):
         super().__init__(
-            ASPP(in_channels, [12, 24, 36]),
+            ASPP(gcn_model_type,in_channels, atrous_rates, gcn_rates),
             nn.Conv2d(256, 256, 3, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(),
@@ -133,22 +133,19 @@ class DeepLabHead(nn.Sequential):
 
 
 class ASPP(nn.Module):
-    def __init__(self, in_channels: int, atrous_rates: List[int], out_channels: int = 256) -> None:
+    def __init__(self,gcn_model_type:str, in_channels: int, atrous_rates: List[int], gcn_rates: List[int], out_channels: int = 256):
         super().__init__()
         modules = []
-        modules.append(
-            nn.Sequential(nn.Conv2d(in_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
-        )
+        modules.append(nn.Sequential(nn.Conv2d(in_channels, out_channels, 1, bias=False),
+                                     nn.BatchNorm2d(out_channels), nn.ReLU()))
 
         rates = tuple(atrous_rates)
+        gcn_rates = tuple(gcn_rates)
         for rate in rates:
             modules.append(ASPPConv(in_channels, out_channels, rate))
 
-        ## add gcn code in here
-
-        modules.append(GCN(in_channels,out_channels,64))
-
-
+        for gcn_rate in gcn_rates:
+            modules.append(GCN(gcn_model_type,in_channels, out_channels, gcn_rate))
 
         modules.append(ASPPPooling(in_channels, out_channels))
 
@@ -160,21 +157,26 @@ class ASPP(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5),
         )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         print("****ASPP****")
         print(x.size())
         res = []
         for conv in self.convs:
-            print('conv',conv, conv(x).size())
+            print('conv', conv, conv(x).size())
             res.append(conv(x))
+
+        for i in res:
+            print(i.size())
         res = torch.cat(res, dim=1)
+
         x = self.project(res)
         print('after aspp output ', x.size())
         return x
 
 
 class ASPPConv(nn.Sequential):
-    def __init__(self, in_channels: int, out_channels: int, dilation: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int, dilation: int):
         modules = [
             nn.Conv2d(in_channels, out_channels, 3, padding=dilation, dilation=dilation, bias=False),
             nn.BatchNorm2d(out_channels),
@@ -184,7 +186,7 @@ class ASPPConv(nn.Sequential):
 
 
 class ASPPPooling(nn.Sequential):
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int):
         super().__init__(
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
@@ -207,15 +209,20 @@ class DeepLabv3(nn.Module):
         self.fcn = fcn
 
     def forward(self, x):
-        print('back bone input',x.size())
+        size = (x.shape[2], x.shape[3])
+        print('back bone input', x.size())
         features = self.backbone(x)
-        print('classifiaction input',features.size())
+        print('classification input', features.size())
         output1 = self.classifier(features)
+        print('classifier output', output1.size())
         output2 = self.fcn(output1)
-        return output2
+
+        model_output = nn.Upsample(size, mode='bilinear', align_corners=True)(output2)
+        print('model output', model_output.size())
+        return model_output
 
 
-def model_load():
+def model_load(gcn_model_type:str):
     num_classes = 21
     resnet_backbone = resnet.resnet50(pretrained=True)
     backbone = nn.Sequential(
@@ -229,21 +236,16 @@ def model_load():
         resnet_backbone.layer4,
     )
 
-    classifier = DeepLabHead(2048, num_classes)
-    fcn = FCNHead(1024, num_classes)
+    classifier = DeepLabHead(gcn_model_type,2048, num_classes, [12], [36])
+    fcn = FCNHead(21, num_classes)
 
-    # Create an instance of the combined model
     model = DeepLabv3(backbone, classifier, fcn)
     return model
 
 
 from torchsummary import summary
 
-# Assuming you have instantiated and loaded your model
-model = model_load()
-print(model)
-# Define input shapes for each input to your model
-input_shapes = [(3, 512, 512)]  # Example input shapes, replace with actual shapes
+model = model_load('sage')
 
-# Use torchsummary to get the model summary
+input_shapes = [(3, 512, 512)]
 summary(model, input_shapes)

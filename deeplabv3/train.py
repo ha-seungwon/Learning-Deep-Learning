@@ -16,20 +16,9 @@ from utils import AverageMeter, inter_and_union
 
 
 
-# Define the loss function
-criterion = nn.CrossEntropyLoss()
-
-# Create an instance of your model
-model = deeplabv3.model_load()
-
-# Define the optimizer
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-
 # Set the device to GPU if available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Move the model to the device
-model = model.to(device)
 
 # Define your image transformations
 transform = transforms.Compose([
