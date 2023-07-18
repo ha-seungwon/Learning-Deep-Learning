@@ -123,3 +123,5 @@ def model_load():
     # Create an instance of the combined model
     model = DeepLabv3(backbone, classifier, fcn)
     return model
+
+
