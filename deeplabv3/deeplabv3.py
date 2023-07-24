@@ -124,4 +124,3 @@ def model_load():
     model = DeepLabv3(backbone, classifier, fcn)
     return model
 
-

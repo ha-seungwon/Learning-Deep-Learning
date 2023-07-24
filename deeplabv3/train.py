@@ -1,49 +1,34 @@
-import argparse
-import os
-import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import pdb
-from PIL import Image
-from scipy.io import loadmat
-from torch.autograd import Variable
 from torchvision import transforms
-
-import deeplabv3
+from tqdm import tqdm
+from torch.autograd import Variable
 from pascal import VOCSegmentation
-from utils import AverageMeter, inter_and_union
+import warnings
 
-
-
-# Set the device to GPU if available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-# Define your image transformations
-transform = transforms.Compose([
-    transforms.Resize((256, 256)),
-    transforms.ToTensor(),
-])
-
+warnings.filterwarnings("ignore")
 
 # Create a dataset using VOCSegmentation
-dataset = VOCSegmentation('C:/Users/USER/Desktop/연구실/data/VOCdevkit',
-        train=True, crop_size=513)
+dataset = VOCSegmentation('C:/Users/dongj/Desktop/haseungwon/data/VOCdevkit', train=True, crop_size=513)
 
 dataset_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=16, shuffle=True,
-        pin_memory=True, num_workers=4)
+    dataset, batch_size=8, shuffle=True, pin_memory=True
+)
 
 # Calculate IoU
 def calculate_iou(predicted_mask, target_mask):
+    predicted_mask = predicted_mask.bool()
+    target_mask = target_mask.bool()
     intersection = torch.logical_and(predicted_mask, target_mask).sum()
     union = torch.logical_or(predicted_mask, target_mask).sum()
     iou = intersection.float() / union.float()
     return iou
-from tqdm import tqdm
+
+# Set the device to GPU if available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Define your training loop
-def train_model(model, criterion, optimizer, device, epochs):
+def train_model(model, criterion, optimizer, epochs):
+
     model.train()  # Set the model to train mode
 
     for epoch in range(epochs):
@@ -52,24 +37,23 @@ def train_model(model, criterion, optimizer, device, epochs):
 
         # Wrap the dataloader with tqdm and add a progress bar
         with tqdm(dataset_loader, unit="batch") as t:
-            t.set_description(f"Epoch [{epoch+1}/{epochs}]")
+            t.set_description(f"Epoch [{epoch + 1}/{epochs}]")
 
             # Iterate over the training dataset
             for inputs, labels in t:
-                inputs = inputs.to(device)
-                labels = labels.to(device)
 
                 # Zero the gradients
                 optimizer.zero_grad()
 
-                # Forward pass
-                outputs = model(inputs)
+                inputs = inputs.to(device)
+                labels = labels.to(device).long()
+                outputs = model(inputs).float()
+
                 loss = criterion(outputs, labels)
-                
-                # Calculate IoU
                 predicted_masks = torch.argmax(outputs, dim=1)
+
                 iou = calculate_iou(predicted_masks, labels)
-                
+
                 # Backward pass and optimization
                 loss.backward()
                 optimizer.step()
@@ -86,7 +70,26 @@ def train_model(model, criterion, optimizer, device, epochs):
         epoch_iou = running_iou / len(dataset_loader.dataset)
 
         # Print the loss and IoU for this epoch
-        print(f"Epoch [{epoch+1}/{epochs}], Loss: {epoch_loss:.4f}, IoU: {epoch_iou:.4f}")
+        print(f"Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}, IoU: {epoch_iou:.4f}")
+
+    # Calculate and print the Mean IoU (mIoU) at the end of training
+    with torch.no_grad():
+        model.eval()  # Set the model to evaluation mode
+        total_iou = 0.0
+        total_samples = 0
+
+        for inputs, labels in dataset_loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device).long()
+            outputs = model(inputs).float()
+            predicted_masks = torch.argmax(outputs, dim=1)
+
+            iou = calculate_iou(predicted_masks, labels)
+
+            total_iou += iou.sum().item()
+            total_samples += inputs.size(0)
+
+        miou = total_iou / total_samples
+        print(f"Mean IoU (mIoU) at the end of training: {miou:.4f}")
 
     return model
-

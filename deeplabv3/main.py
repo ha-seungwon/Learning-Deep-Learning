@@ -5,8 +5,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import deeplabv3
+import deeplabv3_gcn
 warnings.filterwarnings("ignore")
 import torch.multiprocessing as mp
+import arguments as args
 
 if __name__ == '__main__':
     mp.freeze_support()
@@ -14,10 +16,13 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss()
 
     # Create an instance of your model
+    if args.model == 'deeplabv3_gcn':
+        model = deeplabv3_gcn.model_load('sage',[3],[2])
+    else:
+        model = deeplabv3.model_load()
+    
 
-    model = deeplabv3.model_load()
-
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
 
     # Set the device to GPU if available
@@ -29,4 +34,4 @@ if __name__ == '__main__':
 
 
     # Code for creating and training the model
-    trained_model = train.train_model(model, criterion, optimizer, device, 10)
+    trained_model = train.train_model(model, criterion, optimizer, device, args.epochs)
