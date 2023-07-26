@@ -5,7 +5,11 @@ import deeplabv3_gcn
 from pascal import VOCSegmentation
 # Step 1: Load the trained model and set it to evaluation mode
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+<<<<<<< HEAD
 model_name = '/Users/haseung-won/Desktop/학교/연구실/Learning-Deep-Learning/deeplabv3/deeplabv3_0.68([3],[2]).pth'  # Update with the path to your trained model
+=======
+model_name = 'path/to/your/trained/model.pth'  # Update with the path to your trained model
+>>>>>>> 57b9c3468fff70ba38c97b5cdec6b9d1ae57ea96
 model = deeplabv3_gcn.model_load()  # Replace 'YourModelClass' with the actual class of your model
 model.load_state_dict(torch.load(model_name, map_location=device))
 model.to(device)
