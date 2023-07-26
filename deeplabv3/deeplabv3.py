@@ -124,3 +124,9 @@ def model_load():
     model = DeepLabv3(backbone, classifier, fcn)
     return model
 
+from torchsummary import summary
+
+model = model_load()
+
+input_shapes = [(3, 513, 513)]
+summary(model, input_shapes)
