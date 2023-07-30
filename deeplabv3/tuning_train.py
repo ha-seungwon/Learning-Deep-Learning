@@ -36,7 +36,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def train_model(model, criterion, optimizer, epochs):
     wandb.init(project="GNN-Segmentation-seungwon")
     model.train()  # Set the model to train mode
-
+    miou_buf=[]
     for epoch in range(epochs):
         running_loss = 0.0
         running_iou = 0.0
@@ -91,6 +91,7 @@ def train_model(model, criterion, optimizer, epochs):
 
             iou = inter_meter.sum / (union_meter.sum + 1e-10)
             miou = iou.mean()
+            miou_buf.append(miou)
 
 
         # Compute the epoch loss and IoU
@@ -109,4 +110,4 @@ def train_model(model, criterion, optimizer, epochs):
         wandb.log({"iou": miou, "loss": epoch_loss})
 
     wandb.finish()
-    return model
+    return max(miou_buf)
