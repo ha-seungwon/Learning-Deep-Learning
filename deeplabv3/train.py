@@ -4,8 +4,7 @@ from tqdm import tqdm
 from torch.autograd import Variable
 from pascal import VOCSegmentation
 import warnings
-import wandb
-import arguments as args
+from argument import args
 import numpy as np
 from utils import AverageMeter, inter_and_union
 

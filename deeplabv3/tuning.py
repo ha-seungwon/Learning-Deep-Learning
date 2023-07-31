@@ -25,11 +25,10 @@ if __name__ == '__main__':
     
 
     model_atrous_rate_list=[0,1,3]
-    model_gcnn_rate_list=[[2,4,8,16],[3,6,9]]
+    model_gcnn_rate_list=[[8,16],[2,4,8,16],[3,6,9]]
 
     for atrous in model_atrous_rate_list:
         for gcn in model_gcnn_rate_list:
-
             if atrous ==0:
 
                 model = deeplabv3_gcn_encoder.model_load('sage', [], gcn)

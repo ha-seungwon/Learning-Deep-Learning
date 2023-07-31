@@ -8,16 +8,18 @@ import deeplabv3
 import deeplabv3_gcn
 warnings.filterwarnings("ignore")
 import torch.multiprocessing as mp
-import arguments as args
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision import transforms
+from argument import args
+
+
 
 if __name__ == '__main__':
     mp.freeze_support()
 
     # Define the loss function
     criterion = nn.CrossEntropyLoss()
-
+    print(args.model)
     # Create an instance of your model
     if args.model == 'deeplabv3_gcn':
         model = deeplabv3_gcn.model_load('sage', [3], [2])
@@ -25,7 +27,7 @@ if __name__ == '__main__':
         model = deeplabv3.model_load()
 
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
-
+    print(args.lr)
     # Set the device to GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

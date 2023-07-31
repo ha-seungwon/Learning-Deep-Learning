@@ -433,13 +433,3 @@ def model_load(gcn_model_type: str, atrous_rates: List[int], gcn_rates: List[int
     return model
 
 
-from torchsummary import summary
-
-model = model_load('sage',[],[2])
-input_shapes = [(3, 513, 513)]
-print(model)
-summary(model, input_shapes)
-
-num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-# print number of parameters
-print(f"Number of parameters: {num_params / (1000.0 ** 2): .3f} M")
