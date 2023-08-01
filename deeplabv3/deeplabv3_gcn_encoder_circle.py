@@ -295,19 +295,28 @@ class GCN(torch.nn.Module):
 
     def edge(self, grid_size, stride):
         edge_index = []
-        for i in range(0, grid_size, stride):
-            for j in range(0, grid_size, stride):
-                current = i * grid_size + j
-                if j < grid_size - stride:
-                    edge_index.append([current, current + stride])
-                if i < grid_size - stride:
-                    edge_index.append([current, current + grid_size * stride])
-                if j < grid_size - stride and i < grid_size - stride:
-                    edge_index.append([current, current + grid_size * stride + stride])
-                if j > stride and i < grid_size - stride:
-                    edge_index.append([current, current + grid_size * stride - stride])
-        edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous()#.cuda()
+        center_x, center_y = grid_size // 2, grid_size // 2
+        for i in range(0, grid_size):
+            for j in range(0, grid_size):
+                dx, dy = abs(center_x - i), abs(center_y - j)
+                distance = (dx ** 2 + dy ** 2) ** 0.5
+                if distance <= stride:
+                    current = i * grid_size + j
+                    if j < grid_size - 1:
+                        right = i * grid_size + (j + 1)
+                        edge_index.append([current, right])
+                    if i < grid_size - 1:
+                        down = (i + 1) * grid_size + j
+                        edge_index.append([current, down])
+                    if i < grid_size - 1 and j < grid_size - 1:
+                        down_right = (i + 1) * grid_size + (j + 1)
+                        edge_index.append([current, down_right])
+                    if i > 0 and j < grid_size - 1:
+                        up_right = (i - 1) * grid_size + (j + 1)
+                        edge_index.append([current, up_right])
+        edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
         return edge_idx
+
 
     def feature2graph(self, feature_map, edge_index):
         batch_size, channels, height, width = feature_map.shape
@@ -388,6 +397,7 @@ class ASPP(nn.Module):
                 modules.append(ASPPConv(in_channels, out_channels, rate))
 
         self.reduce_channel = EncoderCNN()
+
 
         if len(gcn_rates) != 0:
             for gcn_rate in gcn_rates:

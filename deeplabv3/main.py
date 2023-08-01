@@ -13,7 +13,6 @@ from torchvision import transforms
 from argument import args
 
 
-
 if __name__ == '__main__':
     mp.freeze_support()
 
