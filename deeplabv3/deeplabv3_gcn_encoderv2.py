@@ -273,11 +273,11 @@ class GCN_Layer_sage(torch.nn.Module):
         self.sage2 = SAGEConv(in_channels, in_channels)
         self.sage3 = SAGEConv(in_channels, out_channels)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index,edge_idx_1_1):
         x = self.sage1(x, edge_index)
         x = F.dropout(x)
         x = F.relu(x)
-        x = self.sage2(x, edge_index)
+        x = self.sage2(x, edge_idx_1_1)
         x = F.dropout(x)
         x = F.relu(x)
         x = self.sage3(x, edge_index)
@@ -308,6 +308,24 @@ class GCN(torch.nn.Module):
                     edge_index.append([current, current + grid_size * stride - stride])
         edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous()#.cuda()
         return edge_idx
+    
+    def edge1_1(self,grid_size):
+        edge_index = []
+        for i in range(grid_size):
+            for j in range(grid_size):
+                current = i * grid_size + j
+
+                # Connect to the right neighbor
+                if j < grid_size - 1:
+                    edge_index.append([current, current + 1])
+
+                # Connect to the bottom neighbor
+                if i < grid_size - 1:
+                    edge_index.append([current, current + grid_size])
+
+        edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous()  # .cuda()
+        return edge_idx
+
 
     def feature2graph(self, feature_map, edge_index):
         batch_size, channels, height, width = feature_map.shape
@@ -334,8 +352,13 @@ class GCN(torch.nn.Module):
 
     def forward(self, x):
         edge_idx = self.edge(self.grid_size, self.stride)
+        edge_idx_1_1=self.edge1_1(self.grid_size)
+
+
+        x_1 = self.feature2graph(x, edge_idx_1_1)
         x = self.feature2graph(x, edge_idx)
-        x = self.gcn_conv(x.x, x.edge_index)
+        
+        x = self.gcn_conv(x.x, x.edge_index,x_1.edge_index)
         x = self.graph2feature(x, num_nodes=(self.grid_size ** 2))
         return x
 
@@ -485,7 +508,7 @@ def model_load(backbone_arch,gcn_model_type: str, atrous_rates: List[int], gcn_r
 
 
 
-model=model_load('resnet50','sage',[1],[8,16])
+model=model_load('resnet50','sage',[1],[4,8,16])
 print(model)
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)#
 # print number of parameters#

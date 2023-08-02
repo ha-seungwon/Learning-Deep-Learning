@@ -293,14 +293,14 @@ class GCN(torch.nn.Module):
         self.grid_size = grid_size
         self.stride = gcn_rate
 
-    def edge(self, grid_size, stride):
+    def edge(self,grid_size, stride):
         edge_index = []
         center_x, center_y = grid_size // 2, grid_size // 2
-        for i in range(0, grid_size):
-            for j in range(0, grid_size):
+        for i in range(grid_size):
+            for j in range(grid_size):
                 dx, dy = abs(center_x - i), abs(center_y - j)
                 distance = (dx ** 2 + dy ** 2) ** 0.5
-                if distance <= stride:
+                if stride <= distance < stride + 1:
                     current = i * grid_size + j
                     if j < grid_size - 1:
                         right = i * grid_size + (j + 1)
@@ -314,7 +314,7 @@ class GCN(torch.nn.Module):
                     if i > 0 and j < grid_size - 1:
                         up_right = (i - 1) * grid_size + (j + 1)
                         edge_index.append([current, up_right])
-        edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+        edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous().cuda()
         return edge_idx
 
 
