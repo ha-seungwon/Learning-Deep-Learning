@@ -396,8 +396,8 @@ class ASPP(nn.Module):
 
         modules = []
         gcn_modules = []
-        modules.append(nn.Sequential(nn.Conv2d(in_channels, out_channels, 1, bias=False),
-                                     nn.BatchNorm2d(out_channels,momentum), nn.ReLU(inplace=True)))
+        #modules.append(nn.Sequential(nn.Conv2d(in_channels, out_channels, 1, bias=False),
+        #                             nn.BatchNorm2d(out_channels,momentum), nn.ReLU(inplace=True)))
 
         rates = tuple(atrous_rates)
         gcn_rates = tuple(gcn_rates)
@@ -508,7 +508,7 @@ def model_load(backbone_arch,gcn_model_type: str, atrous_rates: List[int], gcn_r
 
 
 
-model=model_load('resnet50','sage',[1],[4,8,16])
+model=model_load('resnet50','sage',[1,3],[4,8,16])
 print(model)
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)#
 # print number of parameters#
