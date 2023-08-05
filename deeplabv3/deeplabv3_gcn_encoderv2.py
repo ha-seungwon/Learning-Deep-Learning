@@ -269,18 +269,31 @@ class GCN_Layer(torch.nn.Module):
 class GCN_Layer_sage(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GCN_Layer_sage, self).__init__()
-        self.sage1 = SAGEConv(in_channels, in_channels)
-        self.sage2 = SAGEConv(in_channels, in_channels)
-        self.sage3 = SAGEConv(in_channels, out_channels)
+        self.sage1_1 = SAGEConv(in_channels, in_channels)
+        self.sage2_1 = SAGEConv(in_channels, in_channels)
+        self.sage1_2 = SAGEConv(in_channels, in_channels)
+        self.sage2_2 = SAGEConv(in_channels, in_channels)
+        self.sage1_3 = SAGEConv(in_channels, in_channels)
+        self.sage2_3 = SAGEConv(in_channels, in_channels)
+        self.sage1_4 = SAGEConv(in_channels, in_channels)
+        self.sage2_4 = SAGEConv(in_channels, in_channels)
+        self.sage1_5 = SAGEConv(in_channels, in_channels)
+        self.sage2_5 = SAGEConv(in_channels, out_channels)
+        #self.sage3 = SAGEConv(in_channels, out_channels)
 
     def forward(self, x, edge_index,edge_idx_1_1):
-        x = self.sage1(x, edge_index)
-        x = F.dropout(x)
-        x = F.relu(x)
-        x = self.sage2(x, edge_idx_1_1)
-        x = F.dropout(x)
-        x = F.relu(x)
-        x = self.sage3(x, edge_index)
+        x = self.sage1_1(x, edge_index)
+        x = self.sage2_1(x, edge_idx_1_1)
+        x = self.sage1_2(x, edge_index)
+        x = self.sage2_2(x, edge_idx_1_1)
+        x = self.sage1_3(x, edge_index)
+        x = self.sage2_3(x, edge_idx_1_1)
+        x = self.sage1_4(x, edge_index)
+        x = self.sage2_4(x, edge_idx_1_1)
+        x = self.sage1_5(x, edge_index)
+        x = self.sage2_5(x, edge_idx_1_1)
+
+
         return x
 
 class GCN(torch.nn.Module):
@@ -353,8 +366,6 @@ class GCN(torch.nn.Module):
     def forward(self, x):
         edge_idx = self.edge(self.grid_size, self.stride)
         edge_idx_1_1=self.edge1_1(self.grid_size)
-
-
         x_1 = self.feature2graph(x, edge_idx_1_1)
         x = self.feature2graph(x, edge_idx)
         
@@ -508,7 +519,7 @@ def model_load(backbone_arch,gcn_model_type: str, atrous_rates: List[int], gcn_r
 
 
 
-model=model_load('resnet50','sage',[1,3],[4,8,16])
+model=model_load('resnet50','sage',[3],[8,16])
 print(model)
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)#
 # print number of parameters#
