@@ -137,7 +137,7 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=1,
                                        dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=1,
                                        dilate=replace_stride_with_dilation[2])
@@ -283,14 +283,23 @@ class GCN_Layer_sage(torch.nn.Module):
 
     def forward(self, x, edge_index,edge_idx_1_1):
         x = self.sage1_1(x, edge_index)
+        x = F.relu(x)
         x = self.sage2_1(x, edge_idx_1_1)
+        x = F.relu(x)
         x = self.sage1_2(x, edge_index)
+        x = F.relu(x)
         x = self.sage2_2(x, edge_idx_1_1)
+        x = F.relu(x)
         x = self.sage1_3(x, edge_index)
+        x = F.relu(x)
         x = self.sage2_3(x, edge_idx_1_1)
+        x = F.relu(x)
         x = self.sage1_4(x, edge_index)
+        x = F.relu(x)
         x = self.sage2_4(x, edge_idx_1_1)
+        x = F.relu(x)
         x = self.sage1_5(x, edge_index)
+        x = F.relu(x)
         x = self.sage2_5(x, edge_idx_1_1)
 
 
@@ -387,17 +396,25 @@ class DeepLabHead(nn.Sequential):
 class EncoderCNN(nn.Module):
     def __init__(self):
         super(EncoderCNN, self).__init__()
-        self.conv1 = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0, dilation=1)
+        self.conv1 = nn.Conv2d(2048, 512,  kernel_size=1, stride=1,padding=0,dilation=1)
+        self.conv2 = nn.Conv2d(512, 256, kernel_size=1, stride=1,padding = 0,dilation=1)
 
         self.gelu = nn.GELU()
-        self.bn1 = nn.BatchNorm2d(256, momentum=0.0003)
+        self.bn1 = nn.BatchNorm2d(512,momentum=0.0003)
+        self.bn2 = nn.BatchNorm2d(256,momentum=0.0003)
+
+
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.gelu(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.gelu(x)
 
         return x
+
 
 class ASPP(nn.Module):
     def __init__(self, gcn_model_type: str, in_channels: int, grid_size: int, atrous_rates: List[int],
@@ -407,8 +424,8 @@ class ASPP(nn.Module):
 
         modules = []
         gcn_modules = []
-        #modules.append(nn.Sequential(nn.Conv2d(in_channels, out_channels, 1, bias=False),
-        #                             nn.BatchNorm2d(out_channels,momentum), nn.ReLU(inplace=True)))
+        modules.append(nn.Sequential(nn.Conv2d(in_channels, out_channels, 3, bias=False,padding=1,stride=1),
+                                     nn.BatchNorm2d(out_channels,momentum), nn.ReLU(inplace=True)))
 
         rates = tuple(atrous_rates)
         gcn_rates = tuple(gcn_rates)
@@ -420,7 +437,7 @@ class ASPP(nn.Module):
 
         if len(gcn_rates) != 0:
             for gcn_rate in gcn_rates:
-                gcn_modules.append(GCN(gcn_model_type, in_channels // 8, out_channels, gcn_rate, grid_size))
+                gcn_modules.append(GCN(gcn_model_type, in_channels // 8, out_channels, gcn_rate, grid_size=grid_size))
 
         modules.append(ASPPPooling(in_channels, out_channels))
 
@@ -438,6 +455,7 @@ class ASPP(nn.Module):
         res = []
         for conv in self.convs:
             res.append(conv(x))
+
         x = self.reduce_channel(x)
         for gcn_conv in self.gcn_convs:
             res.append(gcn_conv(x))
@@ -509,7 +527,7 @@ def model_load(backbone_arch,gcn_model_type: str, atrous_rates: List[int], gcn_r
         resnet_backbone.layer4,
     )
 
-    classifier = DeepLabHead(gcn_model_type, 2048, num_classes, 33, atrous_rates, gcn_rates)
+    classifier = DeepLabHead(gcn_model_type, 2048, num_classes, 65, atrous_rates, gcn_rates)
     fcn = FCNHead(21, num_classes)
 
     model = DeepLabv3(backbone, classifier, fcn)
@@ -519,7 +537,7 @@ def model_load(backbone_arch,gcn_model_type: str, atrous_rates: List[int], gcn_r
 
 
 
-model=model_load('resnet50','sage',[3],[8,16])
+model=model_load('resnet50','sage',[],[9,17])
 print(model)
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)#
 # print number of parameters#
