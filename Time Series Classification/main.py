@@ -8,6 +8,8 @@ from keras.utils import to_categorical
 import models
 import random
 import os
+from arguments import args
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def seed_everything(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -20,7 +22,7 @@ seed_everything(42)  # Seed 고정
 df_list=[]
 for subject_id in range(1,10,1):
 
-    dir_csv = f'./PAMAP2_Dataset/Protocol_csv/subject10{str(subject_id)}.csv'
+    dir_csv = f'../PAMAP2_Dataset/Protocol_csv/subject10{str(subject_id)}.csv'
 
     # Define column names based on the provided structure
     column_names = [
@@ -44,8 +46,6 @@ for subject_id in range(1,10,1):
     for part in imu_parts:
         for sensor in imu_sensors:
             column_names.append(f'IMU_{part}_{sensor}')
-    print(column_names)
-    print(len(column_names))
     # Read the CSV file using pandas
     df = pd.read_csv(dir_csv, names=column_names)
     df_list.append(df)
@@ -53,66 +53,82 @@ for subject_id in range(1,10,1):
     # Now df contains the data from the CSV file with appropriate column names
 
 
-
-
-
 # 데이터 병합
 data = pd.concat(df_list, ignore_index=True)
+
+subject_ids = []  # Subject ID 값을 저장할 빈 리스트 생성
+
+for subject_id in range(1, 10, 1):
+    subject_ids += [subject_id] * len(df_list[subject_id - 1])  # Subject ID 반복하여 리스트에 추가
+
+data['subjectID'] = subject_ids  # Subject ID 컬럼을 데이터프레임에 추가
 
 
 data = data.fillna(0)
 X = data.drop(columns=['activityID'])
 y = data['activityID']
 num_classes =25
-n_features = X.shape[1]  # Number of columns in your feature matrix X
-print(num_classes)
-
-
 
 
 # 시퀀스 길이 설정
 timesteps = 10
 
-X_train_lstm = []
-y_train_lstm = []
+X_train= []
+y_train = []
 
 for i in range(len(X) - timesteps + 1):
     X_sequence = X.iloc[i:i + timesteps, :].values
     y_label = y.iloc[i + timesteps - 1]  # Get a single label for the sequence
-    X_train_lstm.append(X_sequence)
-    y_train_lstm.append(y_label)
+    X_train.append(X_sequence)
+    y_train.append(y_label)
 
 
 
 
 
-X_train_lstm = np.array(X_train_lstm)
-y_train_lstm = np.array(y_train_lstm)
+X_train_lstm = np.array(X_train)
+y_train_lstm = np.array(y_train)
 # Now you can proceed with multi-label encoding
-y_train_encoded = np.array([to_categorical(labels, num_classes=num_classes) for labels in y_train_lstm])
+y_train_encoded = np.array([to_categorical(labels, num_classes=num_classes) for labels in y_train])
 y_train_encoded_flattened = y_train_encoded.reshape(-1, num_classes)
 
 
 
 # Assuming X_train_lstm, y_train_encoded_flattened are already prepared
 # Convert numpy arrays to PyTorch tensors
-X_train_lstm_tensor = torch.tensor(X_train_lstm, dtype=torch.float32)
+X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
 y_train_encoded_flattened_tensor = torch.tensor(y_train_encoded_flattened, dtype=torch.float32)
 
 # Create a custom dataset
 class CustomDataset(Dataset):
-    def __init__(self, X, y):
+    def __init__(self, X, y, edge_index):
         self.X = X
         self.y = y
+        self.edge_index = edge_index
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+print("X_train_lstm",X_train_lstm.shape)
+num_nodes = X_train_lstm.shape[1]
+
+# Create an adjacency matrix with edges connecting each node to its neighbors
+adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+
+# Connect each node to its immediate neighbors (adjust as needed)
+for i in range(num_nodes):
+    if i > 0:
+        adjacency_matrix[i, i - 1] = 1.0
+    if i < num_nodes - 1:
+        adjacency_matrix[i, i + 1] = 1.0
+
+# Convert the adjacency matrix to a sparse tensor
+edge_index = torch.tensor(np.array(np.where(adjacency_matrix == 1)), dtype=torch.long).to(device)
 
 # Create instances of custom dataset
-custom_dataset = CustomDataset(X_train_lstm_tensor, y_train_encoded_flattened_tensor)
+custom_dataset = CustomDataset(X_train_tensor, y_train_encoded_flattened_tensor,edge_index)
 
 # Split the data into training and validation sets
 train_size = int(0.8 * len(custom_dataset))
@@ -128,21 +144,26 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 
 # Initialize model and hyperparameters
-input_size = X_train_lstm_tensor.shape[2]
+input_size = X_train_tensor.shape[2]
 hidden_size = 50
 num_classes = 25
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#model = LSTMModel(input_size, hidden_size, num_classes).to(device)
-
-model_name='Conv1D'
+model_name=args.model_name
 
 if model_name=='LSTM':
     model=models.LSTMModel(input_size, hidden_size, num_classes).to(device)
 elif model_name=='Conv1D':
     model=models.Conv1DModel(input_size, num_classes).to(device)
+elif model_name=='GCN':
+    model=models.GCNModel(input_size,hidden_size, num_classes).to(device)
+    edge_index=custom_dataset.edge_index
+    edge_index=edge_index.to(device)
+elif model_name=='GCN2':
+    model=models.GCNModel2(input_size,hidden_size, num_classes).to(device)
+    edge_index=custom_dataset.edge_index
+    edge_index=edge_index.to(device)
 
-
+print("model_name : ",model_name,"input_size : ",input_size,"hidden_size : ",hidden_size,"num_classes : ",num_classes)
 criterion = nn.BCEWithLogitsLoss()  # Binary cross-entropy loss
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -157,7 +178,11 @@ for epoch in range(num_epochs):
     for inputs, labels in train_loader_tqdm:
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
-        outputs = model(inputs)
+        if 'GCN' in model_name:
+            outputs = model(inputs,edge_index)
+        else:
+            outputs = model(inputs)
+
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
@@ -170,7 +195,10 @@ for epoch in range(num_epochs):
     with torch.no_grad():
         for inputs, labels in val_loader:
             inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
+            if 'GCN' in model_name:
+                outputs = model(inputs, edge_index)
+            else:
+                outputs = model(inputs)
             loss = criterion(outputs, labels)
             val_loss += loss.item()
 

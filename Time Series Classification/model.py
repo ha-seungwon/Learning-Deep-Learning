@@ -1,10 +1,42 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
-from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
+
+class GCNModel(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(GCNModel, self).__init__()
+        self.conv1 = GCNConv(input_size, hidden_size)
+        self.conv2 = GCNConv(hidden_size, num_classes)
+        self.linear = torch.nn.Linear(250, num_classes)  # Add a linear layer for classification
+
+    def forward(self, x, edge_index):
+        x = F.relu(self.conv1(x, edge_index))
+        x = self.conv2(x, edge_index)
+        x = x.view(x.size(0), -1)  # Flatten before fully connected layers
+        x = self.linear(x)  # Apply the linear layer for classification
+        return x
+
+class GCNModel2(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(GCNModel2, self).__init__()
+        self.conv1 = GCNConv(input_size, hidden_size)
+        self.conv2 = GCNConv(hidden_size, hidden_size)
+        self.conv3 = GCNConv(hidden_size, hidden_size)
+        self.conv4 = GCNConv(hidden_size, num_classes)
+        self.linear = torch.nn.Linear(250, num_classes)  # Add a linear layer for classification
+
+    def forward(self, x, edge_index):
+        x = F.relu(self.conv1(x, edge_index))
+        x = self.conv2(x, edge_index)
+        x = self.conv3(x, edge_index)
+        x = self.conv4(x, edge_index)
+        x = x.view(x.size(0), -1)  # Flatten before fully connected layers
+        x = self.linear(x)  # Apply the linear layer for classification
+        return x
 
 class Conv1DModel(nn.Module):
-    def __init__(self, input_size, num_classes,timesteps):
+    def __init__(self, input_size, num_classes):
         super(Conv1DModel, self).__init__()
         self.conv1 = nn.Conv1d(input_size, 32, kernel_size=3, padding=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
