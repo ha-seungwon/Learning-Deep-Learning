@@ -9,25 +9,19 @@ import models
 import random
 import os
 from arguments import args
-
-# Set device to GPU if available, otherwise use CPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# Function to seed random number generators for reproducibility
 def seed_everything(seed):
     random.seed(seed)
     np.random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     torch.manual_seed(seed)
 
-# Fix the seed for reproducibility
-seed_everything(42)
 
-# Create an empty list to store dataframes
-df_list = []
+seed_everything(42)  # Seed 고정
 
-# Loop through subject IDs and read CSV files
-for subject_id in range(1, 10, 1):
+df_list=[]
+for subject_id in range(1,10,1):
+
     dir_csv = f'../PAMAP2_Dataset/Protocol_csv/subject10{str(subject_id)}.csv'
 
     # Define column names based on the provided structure
@@ -43,7 +37,7 @@ for subject_id in range(1, 10, 1):
         'acceleration6g_x', 'acceleration6g_y', 'acceleration6g_z',
         'gyroscope_x', 'gyroscope_y', 'gyroscope_z',
         'magnetometer_x', 'magnetometer_y', 'magnetometer_z',
-        'orientation_1', 'orientation_2', 'orientation_3', 'orientation_4'
+        'orientation_1', 'orientation_2', 'orientation_3','orientation_4'
     ]
 
     imu_parts = ['hand', 'chest', 'ankle']
@@ -52,55 +46,60 @@ for subject_id in range(1, 10, 1):
     for part in imu_parts:
         for sensor in imu_sensors:
             column_names.append(f'IMU_{part}_{sensor}')
-
     # Read the CSV file using pandas
     df = pd.read_csv(dir_csv, names=column_names)
     df_list.append(df)
 
-# Merge dataframes into one
+    # Now df contains the data from the CSV file with appropriate column names
+
+
+# 데이터 병합
 data = pd.concat(df_list, ignore_index=True)
 
-# Create a list of subject IDs and add it as a new column in the dataframe
-subject_ids = []
+subject_ids = []  # Subject ID 값을 저장할 빈 리스트성
+
 for subject_id in range(1, 10, 1):
-    subject_ids += [subject_id] * len(df_list[subject_id - 1])
+    subject_ids += [subject_id] * len(df_list[subject_id - 1])  # Subject ID 반복하여 리스트에 추가
 
-data['subjectID'] = subject_ids
+data['subjectID'] = subject_ids  # Subject ID 컬럼을 데이터프레임에 추가
 
-# Fill missing values with 0
+
 data = data.fillna(0)
-
-# Separate features (X) and labels (y)
 X = data.drop(columns=['activityID'])
 y = data['activityID']
-num_classes = 25
+num_classes =25
 
-# Set sequence length
+
+# 시퀀스 길이 설정
 timesteps = 10
 
-X_train = []
+X_train= []
 y_train = []
 
-# Create sequences and labels for training
 for i in range(len(X) - timesteps + 1):
     X_sequence = X.iloc[i:i + timesteps, :].values
     y_label = y.iloc[i + timesteps - 1]  # Get a single label for the sequence
     X_train.append(X_sequence)
     y_train.append(y_label)
 
-# Convert lists to NumPy arrays
+
+
+
+
 X_train_lstm = np.array(X_train)
 y_train_lstm = np.array(y_train)
-
-# Encode labels using one-hot encoding
+# Now you can proceed with multi-label encoding
 y_train_encoded = np.array([to_categorical(labels, num_classes=num_classes) for labels in y_train])
 y_train_encoded_flattened = y_train_encoded.reshape(-1, num_classes)
 
-# Convert NumPy arrays to PyTorch tensors
-X_train_tensor = torch.tensor(X_train_lstm, dtype=torch.float32)
+
+
+# Assuming X_train_lstm, y_train_encoded_flattened are already prepared
+# Convert numpy arrays to PyTorch tensors
+X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
 y_train_encoded_flattened_tensor = torch.tensor(y_train_encoded_flattened, dtype=torch.float32)
 
-# Create a custom dataset class
+# Create a custom dataset
 class CustomDataset(Dataset):
     def __init__(self, X, y, edge_index):
         self.X = X
@@ -112,28 +111,26 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+print("X_train_lstm",X_train_lstm.shape)
+# num_nodes = X_train_lstm.shape[1]
+#
+# # Create an adjacency matrix with edges connecting each node to its neighbors
+# adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+#
+# # Connect each node to its immediate neighbors (adjust as needed)
+# for i in range(num_nodes):
+#     if i > 0:
+#         adjacency_matrix[i, i - 1] = 1.0
+#     if i < num_nodes - 1:
+#         adjacency_matrix[i, i + 1] = 1.0
+#
+# # Convert the adjacency matrix to a sparse tensor
+# edge_index = torch.tensor(np.array(np.where(adjacency_matrix == 1)), dtype=torch.long).to(device)
 
-# Print the shape of X_train_lstm
-print("X_train_lstm", X_train_lstm.shape)
 
-# Get the number of nodes (features)
-num_nodes = X_train_lstm.shape[1]
-
-# Create an adjacency matrix with edges connecting each node to its neighbors
-adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
-
-# Connect each node to its immediate neighbors (adjust as needed)
-for i in range(num_nodes):
-    if i > 0:
-        adjacency_matrix[i, i - 1] = 1.0
-    if i < num_nodes - 1:
-        adjacency_matrix[i, i + 1] = 1.0
-
-# Convert the adjacency matrix to a sparse tensor
-edge_index = torch.tensor(np.array(np.where(adjacency_matrix == 1)), dtype=torch.long).to(device)
-
+edge_index=[]
 # Create instances of custom dataset
-custom_dataset = CustomDataset(X_train_tensor, y_train_encoded_flattened_tensor, edge_index)
+custom_dataset = CustomDataset(X_train_tensor, y_train_encoded_flattened_tensor,edge_index)
 
 # Split the data into training and validation sets
 train_size = int(0.8 * len(custom_dataset))
@@ -142,41 +139,39 @@ train_dataset, val_dataset = torch.utils.data.random_split(custom_dataset, [trai
 
 # Create data loaders
 batch_size = 64
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+
 
 # Initialize model and hyperparameters
 input_size = X_train_tensor.shape[2]
 hidden_size = 50
 num_classes = 25
 
-model_name = args.model_name
+model_name=args.model_name
 
-# Create the model
-model = models.MyModel(input_size, hidden_size, num_classes, model_name).to(device)
+model=models.MyModel(input_size,hidden_size,num_classes).to(device)
 
-# Print model information
-print("model_name: ", model_name, "input_size: ", input_size, "hidden_size: ", hidden_size, "num_classes: ", num_classes)
-
-# Define loss and optimizer
+print("model_name : ",model_name,"input_size : ",input_size,"hidden_size : ",hidden_size,"num_classes : ",num_classes)
 criterion = nn.BCEWithLogitsLoss()  # Binary cross-entropy loss
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 from tqdm import tqdm  # Import tqdm library
 
 # Training loop
-num_epochs = 10
+num_epochs = 1
 for epoch in range(num_epochs):
     model.train()
     train_loader_tqdm = tqdm(train_loader, desc=f"Epoch [{epoch + 1}/{num_epochs}] Training", leave=False)
-    lstm_outputs = []
+    lstm_outputs=[]
     for inputs, labels in train_loader_tqdm:
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
         if 'GCN' in model_name:
-            outputs = model(inputs, edge_index)
+            outputs = model(inputs,edge_index)
         elif 'LSTM' in model_name:
-            outputs, lstm_output = model(inputs)
+            outputs,lstm_output = model(inputs)
         else:
             outputs = model(inputs)
 
@@ -192,4 +187,21 @@ for epoch in range(num_epochs):
     val_loss = 0.0
     with torch.no_grad():
         for inputs, labels in val_loader:
-            inputs, labels = inputs.to(device), labels
+            inputs, labels = inputs.to(device), labels.to(device)
+            if 'GCN' in model_name:
+                outputs = model(inputs, edge_index)
+            else:
+                outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
+
+    val_loss /= len(val_loader)
+    print(f"Epoch [{epoch+1}/{num_epochs}], Validation Loss: {val_loss:.4f}")
+
+
+
+num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"Number of parameters: {num_params}")
+
+
+print("lstms : ",lstm_outputs)

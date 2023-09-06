@@ -49,6 +49,10 @@ for subject_id in list:
     # Read the CSV file using pandas
     df = pd.read_csv(dir_csv, names=column_names)
 
+<<<<<<< HEAD
+=======
+    df['subjectID'] = subject_id
+>>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 
     df_list.append(df)
 
@@ -81,16 +85,21 @@ num_classes =25
 
 
 # 시퀀스 길이 설정
-timesteps = 10
+timesteps = 50
 
 X_test = []
 y_test = []
 
-for i in range(len(X) - timesteps + 1):
+# 타임스텝 간격 설정
+step_size = timesteps
+
+for i in range(0, len(X) - timesteps + 1, step_size):
     X_sequence = X.iloc[i:i + timesteps, :].values
     y_label = y.iloc[i + timesteps - 1]  # Get a single label for the sequence
     X_test.append(X_sequence)
     y_test.append(y_label)
+
+
 
 
 
@@ -120,7 +129,11 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
+<<<<<<< HEAD
 num_nodes = X_test.shape[1]
+=======
+num_nodes = X_test_lstm.shape[1]
+>>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 
 # Create an adjacency matrix with edges connecting each node to its neighbors
 adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
@@ -139,7 +152,11 @@ edge_index = torch.tensor(np.array(np.where(adjacency_matrix == 1)), dtype=torch
 
 # Create instances of cus
 # Create instances of custom dataset
+<<<<<<< HEAD
 custom_dataset = CustomDataset(X_test_tensor, y_test_encoded_flattened_tensor,edge_index)
+=======
+custom_dataset = CustomDataset(X_test_lstm_tensor, y_test_encoded_flattened_tensor,edge_index)
+>>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 batch_size = 64
 test_dataloader = DataLoader(custom_dataset, batch_size=batch_size, shuffle=False)
 # Initialize model and hyperparameters
@@ -147,17 +164,25 @@ input_size = X_test_tensor.shape[2]
 hidden_size = 50
 num_classes = 25
 
+<<<<<<< HEAD
 print("input_size",input_size,"hidden_size",hidden_size,"num_classes",num_classes,"batch_size",batch_size)
 model_name=args.model_name
 print("model_name",model_name)
+=======
+
+model_name='Conv1D'
+>>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 if model_name=='Conv1D':
     model=models.Conv1DModel(input_size, num_classes).to(device)
 elif model_name=='LSTM':
     model = models.LSTMModel(input_size, hidden_size, num_classes).to(device)
 elif model_name=='GCN':
     model = models.GCNModel(input_size, hidden_size, num_classes).to(device)
+<<<<<<< HEAD
 elif model_name=='GCN2':
     model = models.GCNModel2(input_size, hidden_size, num_classes).to(device)
+=======
+>>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 
 edge_index=custom_dataset.edge_index.to(device)
 # Load the trained model parameters
@@ -177,7 +202,11 @@ def evaluate_model(model, dataloader, device):
             labels = labels.to(device)
 
             # 모델에 입력 데이터 전달하여 예측 수행
+<<<<<<< HEAD
             if 'GCN' in model_name:
+=======
+            if model_name=='GCN':
+>>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
                 outputs = model(inputs,edge_index)
             else:
                 outputs = model(inputs)
