@@ -9,6 +9,7 @@ import models
 import random
 import os
 from arguments import args
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def seed_everything(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -18,59 +19,7 @@ def seed_everything(seed):
 
 seed_everything(42)  # Seed 고정
 
-df_list=[]
-list=[1,5,6,8,9]
-for subject_id in list:
-
-    dir_csv = f'../PAMAP2_Dataset/Protocol_csv/subject10{str(subject_id)}.csv'
-
-    # Define column names based on the provided structure
-    column_names = [
-        'timestamp',
-        'activityID',
-        'heart_rate',
-    ]
-
-    imu_sensors = [
-        'temperature',
-        'acceleration16g_x', 'acceleration16g_y', 'acceleration16g_z',
-        'acceleration6g_x', 'acceleration6g_y', 'acceleration6g_z',
-        'gyroscope_x', 'gyroscope_y', 'gyroscope_z',
-        'magnetometer_x', 'magnetometer_y', 'magnetometer_z',
-        'orientation_1', 'orientation_2', 'orientation_3','orientation_4'
-    ]
-
-    imu_parts = ['hand', 'chest', 'ankle']
-
-    # Add column names for IMU hand, chest, and ankle data
-    for part in imu_parts:
-        for sensor in imu_sensors:
-            column_names.append(f'IMU_{part}_{sensor}')
-    # Read the CSV file using pandas
-    df = pd.read_csv(dir_csv, names=column_names)
-
-<<<<<<< HEAD
-=======
-    df['subjectID'] = subject_id
->>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
-
-    df_list.append(df)
-
-    # Now df contains the data from the CSV file with appropriate column names
-
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
-# 데이터 병합
-data = pd.concat(df_list, ignore_index=True)
-
-subject_ids = []  # Subject ID 값을 저장할 빈 리스트 생성
-
-for subject_id in range(0,5):
-    subject_ids += [list[subject_id]] * len(df_list[subject_id - 1])  # Subject ID 반복하여 리스트에 추가
-
-data['subjectID'] = subject_ids  # Subject ID 컬럼을 데이터프레임에 추가
+data=pd.read_csv('../PAMAP2_Dataset/test.csv')
 
 
 data = data.fillna(0)
@@ -85,13 +34,12 @@ num_classes =25
 
 
 # 시퀀스 길이 설정
-timesteps = 50
+timesteps = 100
+step_size = 20
 
 X_test = []
 y_test = []
 
-# 타임스텝 간격 설정
-step_size = timesteps
 
 for i in range(0, len(X) - timesteps + 1, step_size):
     X_sequence = X.iloc[i:i + timesteps, :].values
@@ -129,11 +77,7 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-<<<<<<< HEAD
 num_nodes = X_test.shape[1]
-=======
-num_nodes = X_test_lstm.shape[1]
->>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 
 # Create an adjacency matrix with edges connecting each node to its neighbors
 adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
@@ -152,37 +96,29 @@ edge_index = torch.tensor(np.array(np.where(adjacency_matrix == 1)), dtype=torch
 
 # Create instances of cus
 # Create instances of custom dataset
-<<<<<<< HEAD
 custom_dataset = CustomDataset(X_test_tensor, y_test_encoded_flattened_tensor,edge_index)
-=======
-custom_dataset = CustomDataset(X_test_lstm_tensor, y_test_encoded_flattened_tensor,edge_index)
->>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 batch_size = 64
 test_dataloader = DataLoader(custom_dataset, batch_size=batch_size, shuffle=False)
 # Initialize model and hyperparameters
 input_size = X_test_tensor.shape[2]
-hidden_size = 50
+hidden_size = 30
 num_classes = 25
 
-<<<<<<< HEAD
 print("input_size",input_size,"hidden_size",hidden_size,"num_classes",num_classes,"batch_size",batch_size)
 model_name=args.model_name
 print("model_name",model_name)
-=======
-
-model_name='Conv1D'
->>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
 if model_name=='Conv1D':
     model=models.Conv1DModel(input_size, num_classes).to(device)
 elif model_name=='LSTM':
     model = models.LSTMModel(input_size, hidden_size, num_classes).to(device)
 elif model_name=='GCN':
     model = models.GCNModel(input_size, hidden_size, num_classes).to(device)
-<<<<<<< HEAD
 elif model_name=='GCN2':
     model = models.GCNModel2(input_size, hidden_size, num_classes).to(device)
-=======
->>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
+elif model_name == "AutoConv":
+    latent_size = 16  # Adjust as needed
+    model = models.ConvAutoencoder(input_size, latent_size).to(device)
+
 
 edge_index=custom_dataset.edge_index.to(device)
 # Load the trained model parameters
@@ -202,11 +138,7 @@ def evaluate_model(model, dataloader, device):
             labels = labels.to(device)
 
             # 모델에 입력 데이터 전달하여 예측 수행
-<<<<<<< HEAD
             if 'GCN' in model_name:
-=======
-            if model_name=='GCN':
->>>>>>> fb68bddffa1850dcf2681fd1e7bedf22ffba7225
                 outputs = model(inputs,edge_index)
             else:
                 outputs = model(inputs)
@@ -223,7 +155,30 @@ def evaluate_model(model, dataloader, device):
     # 정확도 계산
     accuracy = correct_predictions / total_samples
     return accuracy
+def evaluate_autoencoder(model, dataloader, device):
+    # Define the evaluation logic for the autoencoder
+    autoencoder_criterion = nn.MSELoss()
+    total_loss = 0.0
+    num_samples = 0
 
-# 모델 평가 수행
-accuracy = evaluate_model(model, test_dataloader, device)
-print(f"Test Accuracy: {accuracy * 100:.2f}%")
+    with torch.no_grad():
+        for inputs, _ in dataloader:
+            inputs = inputs.to(device)
+            target = inputs[:, -1, :]
+            outputs = model(inputs)
+            outputs = outputs[:, -1, :]
+            loss = autoencoder_criterion(outputs, target)
+            total_loss += loss.item() * inputs.size(0)
+            num_samples += inputs.size(0)
+
+    average_loss = total_loss / num_samples
+    return average_loss
+# 모델 평가 수
+
+if model_name=='AutoConv':
+    # Evaluate the autoencoder
+    autoencoder_loss = evaluate_autoencoder(model, test_dataloader, device)
+    print(f"Autoencoder Loss: {autoencoder_loss:.4f}")
+else:
+    accuracy = evaluate_model(model, test_dataloader, device)
+    print(f"Test Accuracy: {accuracy * 100:.2f}%")
