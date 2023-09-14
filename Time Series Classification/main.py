@@ -32,7 +32,7 @@ test_y= test_data['activityID']
 
 num_classes =25
 
-timesteps = 100
+timesteps = 200
 step_size = 20
 
 X_train = []
@@ -128,22 +128,23 @@ num_classes = 25
 
 model_name=args.model_name
 
+flatten_layer_input=num_classes*timesteps
 if model_name=='LSTM':
     model=models.LSTMModel(input_size, hidden_size, num_classes).to(device)
     lr = 0.00001
 elif model_name=='Conv1D':
     model=models.Conv1DModel(input_size, num_classes).to(device)
-    lr = 0.0001
+    lr = 0.001
 elif model_name=='GCN':
-    model=models.GCNModel(input_size,hidden_size, num_classes).to(device)
+    model=models.GCNModel(input_size,hidden_size, num_classes,timesteps).to(device)
     edge_index=custom_dataset.edge_index
     edge_index=edge_index.to(device)
     lr = 0.0001
 elif model_name=='GCN2':
-    model=models.GCNModel2(input_size,hidden_size, num_classes).to(device)
+    model=models.GCNModel2(input_size,hidden_size, num_classes,timesteps).to(device)
     edge_index=custom_dataset.edge_index
     edge_index=edge_index.to(device)
-    lr = 0.0001
+    lr = 0.00001
 elif model_name=="AutoConv":
     lr = 0.0001
     latent_size = 16  # Adjust as needed
