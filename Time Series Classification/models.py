@@ -1,199 +1,50 @@
 import torch
-from torch import nn
-import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+import torch.nn as nn
+import torch.nn.init as init
 
-class GCNModel(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(GCNModel, self).__init__()
-        self.conv1 = GCNConv(input_size, hidden_size)
-        self.conv2 = GCNConv(hidden_size, num_classes)
-        self.linear = torch.nn.Linear(1250, num_classes)  # Add a linear layer for classification
-
-    def forward(self, x, edge_index):
-        x = F.relu(self.conv1(x, edge_index))
-        x = self.conv2(x, edge_index)
-        x = x.view(x.size(0), -1)  # Flatten before fully connected layers
-        x = self.linear(x)  # Apply the linear layer for classification
-        return x
-
-class GCNModel2(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(GCNModel2, self).__init__()
-        self.conv1 = GCNConv(input_size, hidden_size)
-        self.conv2 = GCNConv(hidden_size, hidden_size)
-        self.conv3 = GCNConv(hidden_size, hidden_size)
-        self.conv4 = GCNConv(hidden_size, hidden_size)
-        self.conv5 = GCNConv(hidden_size, num_classes)
-        self.linear = torch.nn.Linear(2500, num_classes)  # Add a linear layer for classification
-
-    def forward(self, x, edge_index):
-        x = F.relu(self.conv1(x, edge_index))
-        x = self.conv2(x, edge_index)
-        x = self.conv3(x, edge_index)
-        x = self.conv4(x, edge_index)
-        x = self.conv5(x, edge_index)
-        x = x.view(x.size(0), -1)  # Flatten before fully connected layers
-        x = self.linear(x)  # Apply the linear layer for classification
-        return x
-class ConvAutoencoder(nn.Module):
-    def __init__(self, input_size, latent_size):
-        super(ConvAutoencoder, self).__init__()
+class VAE(nn.Module):
+    def __init__(self, input_dim, latent_dim, output_dim):
+        super(VAE, self).__init__()
 
         # Encoder
         self.encoder = nn.Sequential(
-            nn.Conv1d(input_size, 32, kernel_size=3, padding=1),
-            nn.ReLU(True),
-            nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(True),
-            nn.MaxPool1d(kernel_size=2, stride=2)
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
+            nn.ReLU()
         )
+        self.encoder_linear = nn.Linear(256, latent_dim * 2)
 
         # Decoder
         self.decoder = nn.Sequential(
-            nn.ConvTranspose1d(64, 32, kernel_size=3, stride=2),
-            nn.ReLU(True),
-            nn.ConvTranspose1d(32, input_size, kernel_size=3, stride=2),
+            nn.Linear(latent_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, input_dim),
             nn.Sigmoid()
         )
 
-    def forward(self, x):
-        x = x.permute(0, 2, 1)
-        x = self.encoder(x)
-        x = self.decoder(x)
-        x = x.permute(0, 2, 1)
-        return x
+        self.decoder_linear = nn.Linear(latent_dim*2, 256)
 
-    import torch.nn as nn
+        self.latent_dim = latent_dim
 
-    class AutoConvWithGenerator(nn.Module):
-        def __init__(self, input_size, latent_size):
-            super(AutoConvWithGenerator, self).__init__()
-
-            # Encoder
-            self.encoder = nn.Sequential(
-                nn.Conv1d(input_size, 16, kernel_size=3, padding=1),
-                nn.ReLU(),
-                nn.MaxPool1d(kernel_size=2, stride=2),
-                nn.Conv1d(16, 32, kernel_size=3, padding=1),
-                nn.ReLU(),
-                nn.MaxPool1d(kernel_size=2, stride=2)
-            )
-
-            # Decoder
-            self.decoder = nn.Sequential(
-                nn.ConvTranspose1d(32, 16, kernel_size=2, stride=2),
-                nn.ReLU(),
-                nn.ConvTranspose1d(16, input_size, kernel_size=2, stride=2)
-            )
-
-            # Generator (After Encoder)
-            self.generator = nn.Sequential(
-                nn.Linear(latent_size, 64),  # Adjust the layer sizes as needed
-                nn.ReLU(),
-                nn.Linear(64, input_size)
-            )
-
-            self.latent_size = latent_size
-
-        def forward(self, x):
-            # Encoder
-            x = self.encoder(x)
-
-            # Generator
-            latent_vector = torch.randn(x.size(0), self.latent_size).to(x.device)
-            generated_output = self.generator(latent_vector)
-
-            # Decoder
-            x = self.decoder(x)
-
-            return x, generated_output
-
-
-
-class AutoConvWithGenerator(nn.Module):
-    def __init__(self, input_size, latent_size,num_classes):
-        super(AutoConvWithGenerator, self).__init__()
-
-        # Encoder
-        self.encoder = nn.Sequential(
-            nn.Conv1d(input_size, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
-        )
-
-        # Decoder
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose1d(32, 16, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose1d(16, input_size, kernel_size=2, stride=2)
-        )
-
-        # Generator (After Encoder)
-        self.generator = nn.Sequential(
-            nn.Linear(latent_size, 64),  # Adjust the layer sizes as needed
-            nn.ReLU(),
-            nn.Linear(64, input_size)
-        )
-
-        self.latent_size = latent_size
-        self.linear = torch.nn.Linear(54, num_classes)  # Add a linear layer for classification
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
 
     def forward(self, x):
-        x = x.permute(0, 2, 1)
-        # Encoder
-        x = self.encoder(x)
+        print("x.shape", x.shape)
+        # Encoding
+        enc_output = self.encoder(x)
+        print("enc_output.shape", enc_output.shape)
+        enc_output = self.encoder_linear(enc_output)
+        mu, logvar = torch.chunk(enc_output, 2, dim=1)
 
-        # Generator
-        latent_vector = torch.randn(x.size(0), self.latent_size).to(x.device)
-        generated_output = self.generator(latent_vector)
-        generator_label_output=self.linear(generated_output)
-
-        # Decoder
-        x = self.decoder(x)
-        x = x.permute(0, 2, 1)
-
-        return x, generator_label_output
-
-
-class Conv1DModel(nn.Module):
-    def __init__(self, input_size, num_classes):
-        super(Conv1DModel, self).__init__()
-        self.conv1 = nn.Conv1d(input_size, 32, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
-        self.fc1 = nn.Linear(1600, 64)  # Adjust input size based on pooling
-        self.fc2 = nn.Linear(64, num_classes)
-
-    def forward(self, x):
-        x = x.permute(0, 2, 1)  # Permute for Conv1d input format (batch, channels, sequence length)
-        x = self.conv1(x)
-        x = self.pool(x)
-        x = self.conv2(x)
-        x = self.pool(x)
-        x = x.view(x.size(0), -1)  # Flatten before fully connected layers
-        x = self.fc1(x)
-        x = self.fc2(x)
-        return x
-
-
-
-class LSTMModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, num_classes)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-
-        out = self.fc(out[:, -1, :])  # Get the output from the last time step
-        return out
-
-
-
-
+        # Reparameterization trick
+        z = self.reparameterize(mu, logvar)
+        print("z", z.shape)
+        # Decoding
+        z = self.decoder_linear(z)
+        dec_output = self.decoder(z)
+        print("dec_output.shape", dec_output.shape)
+        return dec_output, z
